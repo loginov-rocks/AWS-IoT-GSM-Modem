@@ -22,8 +22,7 @@ const char clientId[] = "testAwsIot";
 const char subscribeTopicFiler[] = "testAwsIotTopic";
 const char publishTopicName[] = "testAwsIotTopic";
 
-unsigned int interval = 5000;
-unsigned long lastPublishMillis = 0;
+String rxLine;
 
 /**
  * @see https://github.com/tzapu/WiFiManager/blob/master/examples/Basic/Basic.ino
@@ -72,7 +71,7 @@ void setupCertificates()
 void publishMessage()
 {
   // @see https://arduinojson.org/v6/how-to/determine-the-capacity-of-the-jsondocument/
-  DynamicJsonDocument json(256);
+  DynamicJsonDocument json(1024);
   json["millis"] = millis();
 
   struct tm timeinfo;
@@ -80,7 +79,9 @@ void publishMessage()
   gmtime_r(&now, &timeinfo);
   json["time"] = asctime(&timeinfo);
 
-  char message[256];
+  json["rx"] = rxLine;
+
+  char message[1024];
   serializeJson(json, message);
 
   pubSubClient.publish(publishTopicName, message);
@@ -93,14 +94,17 @@ void publishMessage()
 
 void receiveMessage(char *topic, byte *payload, unsigned int length)
 {
-  Serial.print("Received [");
-  Serial.print(topic);
-  Serial.print("]: ");
-  for (unsigned int i = 0; i < length; i++)
+  DynamicJsonDocument json(1024);
+  deserializeJson(json, payload);
+
+  if (!json.containsKey("tx"))
   {
-    Serial.print((char)payload[i]);
+    return;
   }
-  Serial.println();
+
+  const char *tx = json["tx"];
+
+  Serial.print(tx);
 }
 
 void setupPubSubClient()
@@ -150,9 +154,16 @@ void loop()
 
   pubSubClient.loop();
 
-  if (millis() > lastPublishMillis + interval)
+  while (Serial.available() > 0)
   {
-    lastPublishMillis = millis();
-    publishMessage();
+    char rxChar = Serial.read();
+    rxLine += rxChar;
+
+    if (rxChar == '\n')
+    {
+      publishMessage();
+
+      rxLine = "";
+    }
   }
 }
