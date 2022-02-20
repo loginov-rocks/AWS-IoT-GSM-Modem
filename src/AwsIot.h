@@ -10,6 +10,7 @@ private:
     WiFiClientSecure wiFiSecureClient;
     PubSubClient *pubSubClient;
 
+    boolean debugOutput = true;
     const char *clientId;
     const char *subscribeTopicFilter;
 
@@ -22,6 +23,7 @@ public:
     AwsIot &setEndpoint(const char *);
     AwsIot &setReceiveMessageCallback(std::function<void(char *, uint8_t *, unsigned int)>);
 
+    AwsIot &setDebugOutput(boolean);
     AwsIot &setClientId(const char *);
     AwsIot &setSubscribeTopicFilter(const char *);
 

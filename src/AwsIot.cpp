@@ -4,27 +4,46 @@ void AwsIot::setupTime()
 {
     time_t nowish = 1510592825;
 
-    Serial.print("Setting time using SNTP");
+    if (debugOutput)
+    {
+        Serial.print("Setting time using SNTP");
+    }
+
     // configTime(TIME_ZONE * 3600, 0 * 3600, "pool.ntp.org", "time.nist.gov");
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
     time_t now = time(nullptr);
-    while (now < nowish)
+
+    if (debugOutput)
     {
-        delay(500);
-        Serial.print(".");
-        now = time(nullptr);
+        while (now < nowish)
+        {
+            delay(500);
+            Serial.print(".");
+            now = time(nullptr);
+        }
+        Serial.println("done!");
     }
-    Serial.println("done!");
 
     struct tm timeinfo;
     gmtime_r(&now, &timeinfo);
-    Serial.print("Current time: ");
-    Serial.print(asctime(&timeinfo));
+
+    if (debugOutput)
+    {
+        Serial.print("Current time: ");
+        Serial.print(asctime(&timeinfo));
+    }
 }
 
 AwsIot::AwsIot() : wiFiSecureClient()
 {
     pubSubClient = new PubSubClient(wiFiSecureClient);
+}
+
+AwsIot &AwsIot::setDebugOutput(boolean _debugOutput)
+{
+    debugOutput = _debugOutput;
+
+    return *this;
 }
 
 AwsIot &AwsIot::setCertificates(const X509List *trustAnchorCertificate, const X509List *clientCertificate, const PrivateKey *clientPrivateKey)
@@ -67,23 +86,35 @@ AwsIot &AwsIot::setSubscribeTopicFilter(const char *_subscribeTopicFilter)
 
 void AwsIot::connect()
 {
-    Serial.println("Connecting to AWS IOT");
+    if (debugOutput)
+    {
+        Serial.println("Connecting to AWS IOT");
+    }
 
     while (!pubSubClient->connect(clientId))
     {
-        Serial.print(".");
+        if (debugOutput)
+        {
+            Serial.print(".");
+        }
         delay(1000);
     }
 
     if (!pubSubClient->connected())
     {
-        Serial.println("AWS IoT Timeout!");
+        if (debugOutput)
+        {
+            Serial.println("AWS IoT Timeout!");
+        }
         return;
     }
 
     pubSubClient->subscribe(subscribeTopicFilter);
 
-    Serial.println("AWS IoT Connected!");
+    if (debugOutput)
+    {
+        Serial.println("AWS IoT Connected!");
+    }
 }
 
 void AwsIot::loop()

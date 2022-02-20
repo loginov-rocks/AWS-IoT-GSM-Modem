@@ -5,6 +5,7 @@
 #include "Secrets.h"
 
 #define SERIAL_BAUDRATE 9600
+#define DEBUG_OUTPUT false
 
 #define WIFI_HOSTNAME "AWS-IoT-GSM-Modem"
 #define WIFI_ACCESS_POINT_SSID "AWS-IoT-GSM-Modem"
@@ -27,16 +28,23 @@ String rxLine;
  */
 void setupWiFi()
 {
-  Serial.println("Setup Wi-Fi...");
+  if (DEBUG_OUTPUT)
+  {
+    Serial.println("Setup Wi-Fi...");
+  }
 
   WiFi.hostname(WIFI_HOSTNAME);
 
-  WiFiManager wifiManager;
-  wifiManager.autoConnect(WIFI_ACCESS_POINT_SSID);
+  WiFiManager wiFiManager;
+  wiFiManager.setDebugOutput(DEBUG_OUTPUT);
+  wiFiManager.autoConnect(WIFI_ACCESS_POINT_SSID);
 
-  Serial.println("Wi-Fi setup was successful!");
-  Serial.print("Local IP: ");
-  Serial.println(WiFi.localIP());
+  if (DEBUG_OUTPUT)
+  {
+    Serial.println("Wi-Fi setup was successful!");
+    Serial.print("Local IP: ");
+    Serial.println(WiFi.localIP());
+  }
 }
 
 void publishMessage()
@@ -57,10 +65,13 @@ void publishMessage()
 
   awsIot.publishMessage(publishTopicName, message);
 
-  Serial.print("Published [");
-  Serial.print(publishTopicName);
-  Serial.print("]: ");
-  Serial.println(message);
+  if (DEBUG_OUTPUT)
+  {
+    Serial.print("Published [");
+    Serial.print(publishTopicName);
+    Serial.print("]: ");
+    Serial.println(message);
+  }
 }
 
 void receiveMessage(char *topic, byte *payload, unsigned int length)
@@ -80,27 +91,41 @@ void receiveMessage(char *topic, byte *payload, unsigned int length)
 
 void setupAwsIot()
 {
-  Serial.println("Setup AWS IoT...");
+  if (DEBUG_OUTPUT)
+  {
+    Serial.println("Setup AWS IoT...");
+  }
 
-  awsIot.setCertificates(&trustAnchorCertificate, &clientCertificate, &clientPrivateKey)
+  awsIot.setDebugOutput(DEBUG_OUTPUT)
+      .setCertificates(&trustAnchorCertificate, &clientCertificate, &clientPrivateKey)
       .setEndpoint(endpoint)
       .setReceiveMessageCallback(receiveMessage)
       .setClientId(clientId)
       .setSubscribeTopicFilter(subscribeTopicFilter)
       .connect();
 
-  Serial.println("AWS IoT setup was successful!");
+  if (DEBUG_OUTPUT)
+  {
+    Serial.println("AWS IoT setup was successful!");
+  }
 }
 
 void setup()
 {
   Serial.begin(SERIAL_BAUDRATE);
-  Serial.println("Setup...");
+
+  if (DEBUG_OUTPUT)
+  {
+    Serial.println("Setup...");
+  }
 
   setupWiFi();
   setupAwsIot();
 
-  Serial.println("Setup was successful!");
+  if (DEBUG_OUTPUT)
+  {
+    Serial.println("Setup was successful!");
+  }
 }
 
 void loop()
@@ -114,7 +139,11 @@ void loop()
 
     if (rxChar == '\n')
     {
-      publishMessage();
+      // Ignore empty lines.
+      if (!rxLine.equals("\r\n"))
+      {
+        publishMessage();
+      }
 
       rxLine = "";
     }
