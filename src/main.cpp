@@ -1,7 +1,7 @@
 #include <ArduinoJson.h>
-#include <PubSubClient.h>
 #include <WiFiManager.h>
 
+#include "AwsIot.h"
 #include "Secrets.h"
 
 #define SERIAL_BAUDRATE 9600
@@ -9,17 +9,15 @@
 #define WIFI_HOSTNAME "AWS-IoT-GSM-Modem"
 #define WIFI_ACCESS_POINT_SSID "AWS-IoT-GSM-Modem"
 
+AwsIot awsIot;
+
 BearSSL::X509List trustAnchorCertificate(rootCaCertificate);
 BearSSL::X509List clientCertificate(deviceCertificate);
 BearSSL::PrivateKey clientPrivateKey(privateKeyFile);
 
-WiFiClientSecure wiFiClient;
-PubSubClient pubSubClient(wiFiClient);
-
-const char mqttHost[] = "a3lfjfqxp1f1qa-ats.iot.eu-west-1.amazonaws.com";
-const unsigned int mqttPort = 8883;
+const char endpoint[] = "a3lfjfqxp1f1qa-ats.iot.eu-west-1.amazonaws.com";
 const char clientId[] = "testAwsIot";
-const char subscribeTopicFiler[] = "testAwsIotTopic";
+const char subscribeTopicFilter[] = "testAwsIotTopic";
 const char publishTopicName[] = "testAwsIotTopic";
 
 String rxLine;
@@ -41,33 +39,6 @@ void setupWiFi()
   Serial.println(WiFi.localIP());
 }
 
-void setupTime(void)
-{
-  time_t nowish = 1510592825;
-
-  Serial.print("Setting time using SNTP");
-  // configTime(TIME_ZONE * 3600, 0 * 3600, "pool.ntp.org", "time.nist.gov");
-  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
-  time_t now = time(nullptr);
-  while (now < nowish)
-  {
-    delay(500);
-    Serial.print(".");
-    now = time(nullptr);
-  }
-  Serial.println("done!");
-  struct tm timeinfo;
-  gmtime_r(&now, &timeinfo);
-  Serial.print("Current time: ");
-  Serial.print(asctime(&timeinfo));
-}
-
-void setupCertificates()
-{
-  wiFiClient.setTrustAnchors(&trustAnchorCertificate);
-  wiFiClient.setClientRSACert(&clientCertificate, &clientPrivateKey);
-}
-
 void publishMessage()
 {
   // @see https://arduinojson.org/v6/how-to/determine-the-capacity-of-the-jsondocument/
@@ -84,7 +55,7 @@ void publishMessage()
   char message[1024];
   serializeJson(json, message);
 
-  pubSubClient.publish(publishTopicName, message);
+  awsIot.publishMessage(publishTopicName, message);
 
   Serial.print("Published [");
   Serial.print(publishTopicName);
@@ -107,28 +78,18 @@ void receiveMessage(char *topic, byte *payload, unsigned int length)
   Serial.print(tx);
 }
 
-void setupPubSubClient()
+void setupAwsIot()
 {
-  pubSubClient.setServer(mqttHost, mqttPort);
-  pubSubClient.setCallback(receiveMessage);
+  Serial.println("Setup AWS IoT...");
 
-  Serial.println("Connecting to AWS IOT");
+  awsIot.setCertificates(&trustAnchorCertificate, &clientCertificate, &clientPrivateKey)
+      .setEndpoint(endpoint)
+      .setReceiveMessageCallback(receiveMessage)
+      .setClientId(clientId)
+      .setSubscribeTopicFilter(subscribeTopicFilter)
+      .connect();
 
-  while (!pubSubClient.connect(clientId))
-  {
-    Serial.print(".");
-    delay(1000);
-  }
-
-  if (!pubSubClient.connected())
-  {
-    Serial.println("AWS IoT Timeout!");
-    return;
-  }
-
-  pubSubClient.subscribe(subscribeTopicFiler);
-
-  Serial.println("AWS IoT Connected!");
+  Serial.println("AWS IoT setup was successful!");
 }
 
 void setup()
@@ -137,22 +98,14 @@ void setup()
   Serial.println("Setup...");
 
   setupWiFi();
-  setupTime();
-  setupCertificates();
-  setupPubSubClient();
+  setupAwsIot();
 
   Serial.println("Setup was successful!");
 }
 
 void loop()
 {
-  if (!pubSubClient.connected())
-  {
-    setupPubSubClient();
-    return;
-  }
-
-  pubSubClient.loop();
+  awsIot.loop();
 
   while (Serial.available() > 0)
   {
